@@ -8,7 +8,7 @@ from cv2 import vconcat, imshow
 
 
 # Path for images
-path = "/home/beks/School/MV/Home Assignment/bottle_crate_images/"
+path = "bottle_crate_images/"
 # Load images directory
 img_dir = listdir(path)
 
