@@ -25,29 +25,29 @@ def component_analysis(image, raw_image):
         h = stats[i, cv.CC_STAT_HEIGHT]
         area = stats[i, cv.CC_STAT_AREA]
         current_component = centroids[i]
-        if area > 120 and area < 250:  # Discard all components outside the desired area values of the bottles
-            if h >= 30 and h <= 55 and w >= 30 and w <= 55 and abs(w - h) < 5:
-                if last_marked is None:  # Identifying first component
-                    # Draw a rectangle around the component
-                    cv.rectangle(img_filtered, (x, y),
-                                 (x + w, y + h), (0, 255, 0), 1)
-                    cv.putText(img_filtered, str(count), org=(int(current_component[0]), int(current_component[1])),
-                               fontFace=cv.FONT_HERSHEY_COMPLEX, fontScale=0.4, color=(255, 0, 0), thickness=1, lineType=cv.LINE_8)
-                    print(
-                        f"count:{count}\tcentroids:{current_component}\twidth: {w}\theight:{h}")
-                else:
-                    # Check the distance between the centre of the current component and the previous component
-                    distance = dist.euclidean(last_marked, current_component)
-                    if distance < 90:
-                        continue
-                    cv.rectangle(img_filtered, (x, y),
-                                 (x + w, y + h), (0, 255, 0), 1)
-                    cv.putText(img_filtered, str(count), org=(int(current_component[0]), int(current_component[1])),
-                               fontFace=cv.FONT_HERSHEY_COMPLEX, fontScale=0.4, color=(255, 0, 0), thickness=1, lineType=cv.LINE_8)
-                    print(
-                        f"count:{count}\tcentroids:{current_component}\twidth: {w}\theight:{h}\tdistance:{distance:.2f}")
-                last_marked = current_component  # Last marked component as a bottle
-                count = count + 1
+        # if area > 120 and area < 250:  # Discard all components outside the desired area values of the bottles
+        if h >= 30 and h <= 55 and w >= 30 and w <= 55 and abs(w - h) < 5:
+            if last_marked is None:  # Identifying first component
+                # Draw a rectangle around the component
+                cv.rectangle(img_filtered, (x, y),
+                             (x + w, y + h), (0, 255, 0), 1)
+                cv.putText(img_filtered, str(count), org=(int(current_component[0]), int(current_component[1])),
+                           fontFace=cv.FONT_HERSHEY_COMPLEX, fontScale=0.4, color=(255, 0, 0), thickness=1, lineType=cv.LINE_8)
+                print(
+                    f"count:{count}\tcentroids:{current_component}\twidth: {w}\theight:{h}")
+            else:
+                # Check the distance between the centre of the current component and the previous component
+                distance = dist.euclidean(last_marked, current_component)
+                if distance < 90:
+                    continue
+                cv.rectangle(img_filtered, (x, y),
+                             (x + w, y + h), (0, 255, 0), 1)
+                cv.putText(img_filtered, str(count), org=(int(current_component[0]), int(current_component[1])),
+                           fontFace=cv.FONT_HERSHEY_COMPLEX, fontScale=0.4, color=(255, 0, 0), thickness=1, lineType=cv.LINE_8)
+                print(
+                    f"count:{count}\tcentroids:{current_component}\twidth: {w}\theight:{h}\tdistance:{distance:.2f}")
+            last_marked = current_component  # Last marked component as a bottle
+            count = count + 1
 
     imshow("Components", img_filtered)
     cv.waitKey(0)
@@ -57,7 +57,7 @@ def component_analysis(image, raw_image):
 def hough_cirlces(image, raw_image):
     cv.GaussianBlur(raw_image, (9, 9), 2, raw_image, 2)
     circles = cv.HoughCircles(
-        raw_image, cv.HOUGH_GRADIENT, dp=1, minDist=92, param1=200, param2=0.9, minRadius=17, maxRadius=22)
+        raw_image, cv.HOUGH_GRADIENT, dp=1, minDist=50, param1=200, param2=0.9, minRadius=0, maxRadius=0)
 
     circles = np.uint16(np.around(circles))
     img_filtered = cv.cvtColor(raw_image, cv.COLOR_GRAY2BGR)
@@ -77,17 +77,35 @@ def contours(image, raw_image):
         image, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
     # Convert image to color image
     raw_image = cv.cvtColor(raw_image, cv.COLOR_GRAY2BGR)
+    # Last marked circle
+    last_marked = None
+    # Discovered circles
+    circles = []
+    count = 1
     for _, cnt in enumerate(contours):
-        # Discard all contours that are too small
-        area = cv.contourArea(cnt)
-        if area < 50:
-            continue
-        # print(area)
         x, y, w, h = cv.boundingRect(cnt)
-        if h >= 30 and h <= 55 and w >= 30 and w <= 55 and abs(w - h) < 5:
-            print(f"contour:{_+1}\twidth:{w}\theight:{h}")
-            cv.rectangle(raw_image, (x, y), (x+w, y+h), (0, 0, 255), 1)
-        # cv.drawContours(raw_image, cnt, -1, (0, 255, 0), 3)
+        if h >= 30 and h <= 100 and w >= 30 and w <= 100:
+            # compute center
+            M = cv.moments(cnt)
+            center = (int((M["m10"] / M["m00"]) + 1e-5),
+                      int((M["m01"] / M["m00"]) + 1e-5))
+
+            if last_marked is None:
+                cv.rectangle(raw_image, (x, y), (x+w, y+h), (0, 0, 255), 1)
+                cv.putText(raw_image, str(count), org=(int(center[0]), int(center[1])),
+                           fontFace=cv.FONT_HERSHEY_COMPLEX, fontScale=0.4, color=(255, 0, 0), thickness=1, lineType=cv.LINE_8)
+                last_marked = center
+                count += 1
+            # Save components of interest
+            else:
+                dst = dist.euclidean(last_marked, center)
+                if dst > 95:
+                    cv.rectangle(raw_image, (x, y),
+                                 (x+w, y+h), (0, 0, 255), 0)
+                    cv.putText(raw_image, str(count), org=(int(center[0]), int(center[1])),
+                               fontFace=cv.FONT_HERSHEY_COMPLEX, fontScale=0.4, color=(255, 0, 0), thickness=1, lineType=cv.LINE_8)
+                    last_marked = center
+                    count += 1
     imshow("Image with drawn contours", raw_image)
     cv.waitKey(0)
 
@@ -103,17 +121,21 @@ if "__main__" == __name__:
     for index, img in enumerate(img_dir):
         # read image into memory
         img = cv.imread(path+img_dir[index], 0)
+        # Applying a filter
+        img = cv.bilateralFilter(img, 256, 85, 85, cv.BORDER_CONSTANT)
         # Detect edges in the image
-        edges = cv.Canny(img, 80, 200, apertureSize=3)
+        edges = cv.Canny(img, 80, 255, apertureSize=3)
         # morphological dilation
-        edges = cv.dilate(edges, kernel=np.ones((1, 1), np.uint8))
+        # edges = cv.dilate(edges, kernel=np.ones((1, 1), np.uint8))
+        imshow("Edges", edges)
+        cv.waitKey(0)
         # component analysis on list of edges
         # component_analysis(edges, img)
 
         # Perform hough transform
         # hough_cirlces(edges, img)
-        # Perfomr contour detection
-        contours(edges, img)
+        # Perform contour detection
+        # contours(edges, img)
         continue
         # exit()
 
